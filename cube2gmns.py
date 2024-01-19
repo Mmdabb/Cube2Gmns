@@ -365,160 +365,18 @@ def _outputLink(network, output_folder):
     
 
 
-def district_id_map(net_dir):
-    
-    link_net = pd.read_csv(os.path.join(net_dir, 'link.csv'))
-    node_net = pd.read_csv(os.path.join(net_dir, 'node.csv'))
-    
-    link_taz_jurname = pd.read_csv(os.path.join('./input_files/', 'TPBTAZ3722_TPBMod_JUR.csv'))
-   
 
-    link_net['pair'] = link_net['from_node_id'].astype(str) + '->' + link_net['to_node_id'].astype(str)
-    #link_pair_taz_dict = dict(zip(link_cube_net.pair, link_cube_net.TAZ))
-    link_pair_jur_dict = dict(zip(link_net.pair, link_net.JUR))
-    link_taz_jurname_dict = dict(zip(link_taz_jurname.TAZ, link_taz_jurname.NAME))
-    
-    #district_id_dict = {'Arlington':3,'Alexandria':4,'Fairfax':51,'Fairfax City':52,'Falls Church':53,
-    #                    'Loudoun':6,'Manassas':71,'Manassas Park':72,'Prince William':73}
-    
-    #district_id_dict = {'Arlington':1,'Alexandria':2,'Fairfax':3,'Fairfax City':4,'Falls Church':5,
-                        #'Loudoun':6,'Manassas':7,'Manassas Park':8,'Prince William':9}
-    
-   
-    
-    district_id_dict = {'Arlington':2,
-                        'Alexandria':1,
-                        'Fairfax':3,
-                        'Fairfax City':4,
-                        'Falls Church':5,
-                        'Loudoun':6,
-                        'Prince William':9,
-                        'Manassas':7,
-                        'Manassas Park':8
-                        }
-    
-
-
-    
-    #link_net['TAZ'] = link_net.apply(lambda x: link_pair_taz_dict.setdefault(x.pair, -1), axis=1)
-    link_net['JUR_NAME'] = link_net.apply(lambda x: link_taz_jurname_dict.setdefault(x.TAZ, -1), axis=1)
-    link_net['district_id'] = link_net.apply(lambda x: district_id_dict.setdefault(x.JUR_NAME, 10), axis=1)
-    
-    node_district_id_dict_1 = dict(zip(link_net.from_node_id, link_net.district_id))
-    node_district_id_dict_2 = dict(zip(link_net.to_node_id, link_net.district_id))
-    
-    node_net['district_id'] = node_net.apply(lambda x: node_district_id_dict_1.setdefault(x.node_id, -1), axis=1)
-    node_net.to_csv(os.path.join(net_dir, 'node.csv'), index=False)
-    
-    link_net.to_csv(os.path.join(net_dir, 'link.csv'), index=False)
-    print('successful: ',net_dir)
-
-
-
-def cap_adjustment(net_dir):
-    link_csv = os.path.join(net_dir, 'link.csv')
-    if not os.path.exists(link_csv):
-        print(f"File 'link.csv' not found in directory: {net_dir}")
-        return
-    
-    df_link = pd.read_csv(link_csv)
-    
-    has_its = 'ITS' in df_link.columns
-    has_intersecti = 'INTERSECTI' in df_link.columns
-    
-    data_seg_list = []
-    
-    # Check available columns and adjust dictionaries and filters accordingly
-    if has_its and has_intersecti:
-        cap_adj_dict = {
-            1: [0, 0],
-            1.05: [0, 1],
-            1.02: [1, 0],
-            1.07: [1, 1]
-        }
-    elif has_its:
-        cap_adj_dict = {
-            1: [0],
-            1.02: [1]
-        }
-    elif has_intersecti:
-        cap_adj_dict = {
-            1: [0],
-            1.05: [1]
-        }
-    else:
-        print("Columns 'ITS' and 'INTERSECTI' not found in 'link.csv'")
-        return
-    
-    for adj_factor, cap_key in cap_adj_dict.items():
-        ITS_code = cap_key[0] if has_its else None
-        #intersection_code = cap_key[0] if has_intersecti and len(cap_key) > 1 else None
-        intersection_code = (
-            cap_key[0] if (has_intersecti and not has_its) else (
-                cap_key[1] if (has_intersecti and has_its) else None
-            )
-        )
-        
-        # Filter the links based on available columns
-        if ITS_code is not None and intersection_code is not None:
-            link_adj_cap_net = df_link[(df_link.get('ITS') == ITS_code) & (df_link.get('INTERSECTI') == intersection_code)].copy()
-        elif ITS_code is not None and intersection_code is None:
-            link_adj_cap_net = df_link[(df_link.get('ITS') == ITS_code)].copy()
-        elif intersection_code is not None and ITS_code is None:
-            link_adj_cap_net = df_link[(df_link.get('INTERSECTI') == intersection_code)].copy()
-        else:
-            continue
-        
-        if not link_adj_cap_net.empty:
-            link_adj_cap_net['capacity'] *= adj_factor
-            link_adj_cap_net['VDF_cap1'] *= adj_factor
-            link_adj_cap_net['VDF_cap2'] *= adj_factor
-            link_adj_cap_net['VDF_cap3'] *= adj_factor
-            link_adj_cap_net['VDF_cap4'] *= adj_factor
-
-            data_seg_list.append(link_adj_cap_net)
-
-    if data_seg_list:
-        df_bd_test = pd.concat(data_seg_list)
-        df_bd_test = df_bd_test.sort_values(by="link_id")
-        df_bd_test.to_csv(os.path.join(net_dir, 'link.csv'), index=False)
 
 
 
     
 if __name__ == '__main__':
-    start_time = time.process_time()
     
-    cube_net_dir = r'C:\Users\mabbas10\Dropbox (ASU)\2. ASU\2. PhD\2. Projects\NVTA\3_Subarea_analysis\2023\Jan_2\cube_nets'
-    #network_list = ['CMP001', 'FFX134_BD','FFX134_NB', 'FFX138_BD', 'FFX138_NB',
-    #                'LDN029_BD', 'LDN029_NB', 'LDN033_BD', 'LDN033_NB', 'LDN034', 'MAN003', 'PWC040_BD', 'PWC040_NB']
+    shapfile_path = r'C:\Users\...\cube_net'
+    output_folder = shapfile_path
     
-    network_list = [item for item in os.listdir(cube_net_dir) if os.path.isdir(os.path.join(cube_net_dir, item))]
-    
-    for network_file in network_list:
-        print("=======================================================================================")
-        print("Network = ", network_file)
+    network = _buildnet(shapfile_path)
+    _outputNode(network, output_folder)
+    _outputLink(network, output_folder)
         
-        network_dir = os.path.join(cube_net_dir, network_file)
-        
-        network_shapefile_dir = [ntwk for ntwk in os.listdir(network_dir) 
-               if os.path.isdir(os.path.join(network_dir, ntwk)) and 'NTWK' in ntwk]
-        
-        for ntwk in network_shapefile_dir:
-            shapfile_path = os.path.join(network_dir, ntwk)
-            output_folder = shapfile_path
-        
-            network = _buildnet(shapfile_path)
-            _outputNode(network, output_folder)
-            _outputLink(network, output_folder)
-        
-            if network_file.endswith("_BD"):
-                cap_adjustment(shapfile_path)
-                
-            district_id_map(shapfile_path)
-        
-
-    
-    end_time = time.process_time()
-    print('Total running time: %s Seconds' % (end_time - start_time))
 
